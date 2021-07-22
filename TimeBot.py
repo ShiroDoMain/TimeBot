@@ -1,25 +1,32 @@
 import asyncio
 import time
-
+import yaml
 from PIL import Image as IMG, ImageFont, ImageDraw
 from graia.application.entry import (GraiaMiraiApplication, Session, MessageChain, Group, Member, MemberPerm, Plain,
                                      Image)
 from graia.broadcast import Broadcast
-
-GP = []
-
+with open('config.yml','r') as f:
+    cfg = yaml.load(f)
+GP = cfg['enable']
 loop = asyncio.get_event_loop()
 
 bcc = Broadcast(loop=loop)
 app = GraiaMiraiApplication(
     broadcast=bcc,
     connect_info=Session(
-        host="http://localhost:2333", #  host and port
-        authKey="aaaaaaaaaaaa", #  your miraihttp-api authkey
-        account=114514, #  your qqbot num
-        websocket=True
+        host=cfg['host'],
+        authKey=cfg['authKey'],
+        account=cfg['bot'],
+        websocket=cfg['ws']
     )
 )
+
+def refresh():
+    """更新配置文件"""
+    with open('config.yml','w'):
+        cfg['enable'] = GP
+        yaml.dump(cfg,f)
+
 
 # 如果有必要可以自己更换图片
 def time_draw(time_now,msg):
@@ -65,14 +72,13 @@ async def tell_time(bot=app,message:MessageChain=MessageChain):
     time_draw(time.strftime("%H:%M", time.localtime(time.time())),ask(ht))
     for ID in GP:
         if time_num == 7:
-            v = await bot.uploadVoice(open('www.amr','rb')) #  语音也是可以自己换的哦
-            await bot.sendGroupMessage(ID,message.create([v]))
-        await bot.sendGroupMessage(ID, message.create([Image.fromLocalFile(f'img/time_cache.jpg')]))
+            v = await bot.uploadVoice(open('www.amr','rb').read()) # 语音可以换
+            await bot.sendGroupMessage(ID,MessageChain.create([v]))
+        await bot.sendGroupMessage(ID, MessageChain.create([Image.fromLocalFile(f'img/time_cache.jpg')]))
 
 
 async def Run():
     last_time = time.localtime()
-    print(last_time)
     while True:
         curr_time = time.localtime()
         if curr_time.tm_sec < 50 and curr_time.tm_min < 59 and curr_time.tm_min != 0:
@@ -89,26 +95,26 @@ async def Run():
 
 @bcc.receiver('GroupMessage')
 async def Time(bot: GraiaMiraiApplication, group: Group, message: MessageChain, member: Member):
-
-    if message.asDisplay() == '开启整点报时': #  and member.id == 1808107177:
+    if message.has(Plain) and message[Plain][0].text == '开启整点报时': #  and member.id == 1808107177:
         if (member.permission != MemberPerm.Owner) and (member.permission != MemberPerm.Administrator):
-            await bot.sendGroupMessage(group.id, message.create([Plain(text='Permission denied->权限不足，只有管理员or群主可以开启或者关闭')]))
+            await bot.sendGroupMessage(group.id, MessageChain.create([Plain(text='Permission denied->权限不足，只有管理员or群主可以开启或者关闭')]))
         elif group.id in GP:
-            await bot.sendGroupMessage(group.id, message.create([Plain(text=f'{group.name}->已开启整点报时,请勿重复提交')]))
+            await bot.sendGroupMessage(group.id, MessageChain.create([Plain(text=f'{group.name}->已开启整点报时,请勿重复提交')]))
         else:
             GP.append(group.id)
-            await bot.sendGroupMessage(group.id, message.create([Plain(text=f'{group.name}->开启整点报时')]))
-    if message.asDisplay() == '关闭整点报时': # and member.id == 1808107177:
+            await bot.sendGroupMessage(group.id, MessageChain.create([Plain(text=f'{group.name}->开启整点报时')]))
+    elif message.has(Plain) and message[Plain][0].text == '关闭整点报时': # and member.id == 1808107177:
         if (member.permission != MemberPerm.Owner) and (member.permission != MemberPerm.Administrator):
-            await bot.sendGroupMessage(group.id, message.create([Plain(text='Permission denied->权限不足，只有管理员or群主可以开启或者关闭')]))
+            await bot.sendGroupMessage(group.id, MessageChain.create([Plain(text='Permission denied->权限不足，只有管理员or群主可以开启或者关闭')]))
         elif group.id not in GP:
-            await bot.sendGroupMessage(group.id, message.create([Plain(text=f'{group.name}->未关闭整点报时')]))
+            await bot.sendGroupMessage(group.id, MessageChain.create([Plain(text=f'{group.name}->未开启整点报时')]))
         else:
             GP.remove(group.id)
-            await bot.sendGroupMessage(group.id, message.create([Plain(text=f'{group.name}->关闭整点报时')]))
+            await bot.sendGroupMessage(group.id, MessageChain.create([Plain(text=f'{group.name}->关闭整点报时')]))
+    refresh()
 
 async def main():
-    asyncio.create_task(Run())
+    loop.create_task(Run())
 
 if __name__ == '__main__':
     # coro = asyncio.create_task(Run(GraiaMiraiApplication, MessageChain))
