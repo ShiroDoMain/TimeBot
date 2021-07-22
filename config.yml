@@ -1,0 +1,7 @@
+authKey: AUTHKEY
+enableGroup:
+- 123
+- 456
+host: http://localhost:8080
+qq: 1234
+ws: true
